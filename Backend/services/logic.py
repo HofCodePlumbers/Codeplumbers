@@ -60,6 +60,32 @@ def is_url_safe(url):
     except Exception:
         return False
 
+def sanitize_for_prompt(text):
+    """
+    Sanitize text before including it in prompts to prevent adversarial manipulation.
+    """
+    if not text or not isinstance(text, str):
+        return ""
+    
+    # Remove control characters and potential prompt injection patterns
+    sanitized = re.sub(r'[^\x20-\x7E\s]', '', text)  # Keep only printable ASCII and whitespace
+    
+    # Remove patterns that might be used for prompt injection
+    injection_patterns = [
+        r'<\s*prompt\s*>.*?<\s*/\s*prompt\s*>',
+        r'<\s*system\s*>.*?<\s*/\s*system\s*>',
+        r'<\s*instruction\s*>.*?<\s*/\s*instruction\s*>'
+    ]
+    for pattern in injection_patterns:
+        sanitized = re.sub(pattern, '[REMOVED]', sanitized, flags=re.IGNORECASE | re.DOTALL)
+    
+    # Truncate to prevent overwhelming the model
+    max_length = 4000  # Reasonable limit for a section of the prompt
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length] + "... [truncated]"
+    
+    return sanitized
+
 def duckduckgo_check(domain):
     import requests
     from bs4 import BeautifulSoup
@@ -114,24 +140,28 @@ def extract_summary(response_text):
 def generate_response(url):
     parsed = urlparse(url)
     domain = parsed.netloc or parsed.path  # fallback if scheme is missing
+    safe_domain = sanitize_for_prompt(domain)
 
     # --- Step 1: DuckDuckGo keyword check ---
     duck_result = duckduckgo_check(domain)
     search_summary = ""
     if duck_result["is_suspicious"]:
+        safe_keywords = [sanitize_for_prompt(keyword) for keyword in duck_result['matched_keywords']]
         search_summary = (
             f"\nSearch engine results indicate the domain may be suspicious. "
-            f"Found keywords: {', '.join(duck_result['matched_keywords'])}.\n"
+            f"Found keywords: {', '.join(safe_keywords)}.\n"
         )
+    safe_search_summary = sanitize_for_prompt(search_summary)
 
     # --- Step 2: Fetch website content ---
     website_text = fetch_website_text(url)
+    safe_website_text = sanitize_for_prompt(website_text)
 
     # --- Step 3: Create prompt for Ollama ---
     prompt = f"""
 You are a cybersecurity AI assistant helping users evaluate the safety and legitimacy of websites.
 
-A user has asked you to analyze this domain: {url}
+A user has asked you to analyze this domain: {safe_domain}
 
 Your tasks are:
 1. Analyze the domain name structure and determine if it appears to impersonate a legitimate organization (e.g., government agency, company, university, or service).
@@ -141,11 +171,11 @@ Your tasks are:
 5. Summarize all findings clearly in a short paragraph, including why the site is or is not trustworthy.
 
 Search engine findings:
-{search_summary or "No clear scam indicators were found in web search."}
+{safe_search_summary or "No clear scam indicators were found in web search."}
 
 Website content:
 ---
-{website_text[:4000]}
+{safe_website_text}
 ---
 
 Give your assessment now.
