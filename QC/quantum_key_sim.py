@@ -4,9 +4,10 @@
 from qiskit import Aer, QuantumCircuit, execute
 import random
 import hashlib
+import os
 
-# Paste your IBM Quantum token here
-IBM_QUANTUM_TOKEN = '1494747394491cab3d6e6c055f8a0745e1f1898098a6ada8ab0fc8e529d7cc1aba1a4c2639eadbc88e0a6ae80c6ca3d7e07f2b37da32ea43d5b194613c35b8dc'
+# Load IBM Quantum token from environment variable
+IBM_QUANTUM_TOKEN = os.environ.get('IBM_QUANTUM_TOKEN')
 
 def setup_backend():
     print("[!] Forcing local simulator (offline mode)")
@@ -120,4 +121,3 @@ def safe_generate_key(bits=128):
         if key:
             return key
     raise Exception("❌ Quantum key rejected: eavesdropper detected")
-
