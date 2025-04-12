@@ -6,6 +6,7 @@ import tldextract
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from datetime import datetime
+import ipaddress
 
 FEATURE_NAMES = [
     "having_IP_Address", "URL_Length", "Shortening_Service", "having_At_Symbol",
@@ -28,6 +29,99 @@ WHITELIST = {
     # Add more if needed
 }
 
+# Blocked schemes
+BLOCKED_SCHEMES = {'file', 'ftp', 'gopher', 'data', 'ldap', 'dict'}
+
+# Blocked addresses (internal, private networks, loopback)
+BLOCKED_IPS = {
+    '127.0.0.0/8',    # Loopback
+    '10.0.0.0/8',     # Private network
+    '172.16.0.0/12',  # Private network
+    '192.168.0.0/16', # Private network
+    '169.254.0.0/16', # Link-local
+    '::1/128',        # IPv6 loopback
+    'fc00::/7',       # IPv6 unique-local
+    'fe80::/10',      # IPv6 link-local
+}
+
+def is_ip_address_safe(ip_str):
+    """Check if IP address is safe (not in blocked ranges)"""
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        for blocked_range in BLOCKED_IPS:
+            if ip in ipaddress.ip_network(blocked_range, strict=False):
+                return False
+        return True
+    except ValueError:
+        # Not a valid IP address
+        return True
+
+def is_url_safe(url):
+    """
+    Validate if a URL is safe to request
+    Returns: (bool, str) - (is_safe, reason)
+    """
+    try:
+        parsed = urlparse(url)
+        
+        # Check URL scheme
+        if not parsed.scheme:
+            return False, "Missing URL scheme"
+        
+        if parsed.scheme in BLOCKED_SCHEMES:
+            return False, f"Blocked URL scheme: {parsed.scheme}"
+        
+        if parsed.scheme not in ('http', 'https'):
+            return False, f"Non-HTTP scheme: {parsed.scheme}"
+        
+        # Check netloc
+        if not parsed.netloc:
+            return False, "Missing hostname"
+        
+        # Check for IP address
+        domain = parsed.netloc
+        if ':' in domain:  # Remove port if present
+            domain = domain.split(':')[0]
+        
+        try:
+            # If this works, it's an IP address
+            ip = ipaddress.ip_address(domain)
+            if not is_ip_address_safe(domain):
+                return False, f"Blocked IP address: {domain}"
+        except ValueError:
+            # It's a domain name, check for localhost
+            if domain.lower() == 'localhost' or domain.endswith('.localhost'):
+                return False, "Localhost not allowed"
+        
+        # Parse domain components
+        domain_info = tldextract.extract(url)
+        if not domain_info.suffix:
+            return False, "Invalid domain (no TLD)"
+        
+        # Check if domain is whitelisted
+        full_domain = f"{domain_info.domain}.{domain_info.suffix}"
+        if full_domain in WHITELIST:
+            return True, "Whitelisted domain"
+        
+        return True, "URL passed validation"
+        
+    except Exception as e:
+        return False, f"URL validation error: {str(e)}"
+
+def safe_request(url, **kwargs):
+    """Make a request only if the URL is safe"""
+    is_safe, reason = is_url_safe(url)
+    if not is_safe:
+        print(f"[WARNING] Blocked unsafe URL request: {url} - Reason: {reason}")
+        # Return a mock response or None
+        return None
+    
+    try:
+        return requests.get(url, **kwargs)
+    except Exception as e:
+        print(f"[ERROR] Request failed for {url}: {str(e)}")
+        return None
+
 def extract_features_from_url(url):
     features = []
     parsed = urlparse(url)
@@ -36,16 +130,26 @@ def extract_features_from_url(url):
     full_domain = f"{domain_info.domain}.{domain_info.suffix}"
     path = parsed.path
 
-    # ✅ Whitelist override
+    # Check if URL is safe to request
+    is_safe, reason = is_url_safe(url)
+    if not is_safe:
+        print(f"[WARNING] Unsafe URL detected: {url} - Reason: {reason}")
+        return [-1] * len(FEATURE_NAMES)
+
+    # ✅ Whitelist override (kept for backward compatibility)
     if full_domain in WHITELIST:
         print(f"[INFO] {full_domain} is whitelisted. Skipping feature extraction.")
         return [-1] * len(FEATURE_NAMES)
 
-    # Request page content
+    # Request page content - Use safe_request instead of direct requests.get
     try:
-        response = requests.get(url, timeout=5)
-        html = response.text
-        soup = BeautifulSoup(html, 'html.parser')
+        response = safe_request(url, timeout=5)
+        if response:
+            html = response.text
+            soup = BeautifulSoup(html, 'html.parser')
+        else:
+            html = ""
+            soup = None
     except:
         html = ""
         soup = None
@@ -165,10 +269,10 @@ def extract_features_from_url(url):
     # 18. Abnormal URL
     features.append(1 if domain not in url else -1)
 
-    # 19. Redirect count
+    # 19. Redirect count - Use safe_request
     try:
-        r = requests.get(url, timeout=5)
-        features.append(1 if len(r.history) > 3 else 0 if len(r.history) else -1)
+        r = safe_request(url, timeout=5)
+        features.append(1 if r and len(r.history) > 3 else 0 if r and len(r.history) else -1)
     except:
         features.append(-1)
 
@@ -203,10 +307,15 @@ def extract_features_from_url(url):
     except:
         features.append(1)
 
-    # 26. Web Traffic (simulate with reachability check)
+    # 26. Web Traffic (simulate with reachability check) - Validate URL first
     try:
-        traffic = requests.get(f"https://www.{full_domain}", timeout=5)
-        features.append(1 if traffic.status_code == 200 else -1)
+        web_traffic_url = f"https://www.{full_domain}"
+        is_safe, reason = is_url_safe(web_traffic_url)
+        if is_safe:
+            traffic = safe_request(web_traffic_url, timeout=5)
+            features.append(1 if traffic and traffic.status_code == 200 else -1)
+        else:
+            features.append(-1)
     except:
         features.append(-1)
 
@@ -217,12 +326,16 @@ def extract_features_from_url(url):
     except:
         features.append(-1)
 
-    # 28. Google Index (try searching site:domain using Google)
+    # 28. Google Index (try searching site:domain using Google) - Validate URL first
     try:
         search_url = f"https://www.google.com/search?q=site:{full_domain}"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        result = requests.get(search_url, headers=headers, timeout=5)
-        features.append(1 if "did not match any documents" not in result.text else -1)
+        is_safe, reason = is_url_safe(search_url)
+        if is_safe:
+            headers = {"User-Agent": "Mozilla/5.0"}
+            result = safe_request(search_url, headers=headers, timeout=5)
+            features.append(1 if result and "did not match any documents" not in result.text else -1)
+        else:
+            features.append(-1)
     except:
         features.append(-1)
 
