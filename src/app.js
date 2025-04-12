@@ -18,6 +18,22 @@ function HomePage() {
     return inputUrl;
   };
 
+  // Add sanitizer function for LLM outputs
+  const sanitizeLLMOutput = (text) => {
+    if (!text) return "";
+    
+    // Convert to string if not already
+    const stringText = String(text);
+    
+    // Basic HTML/script tag sanitization
+    return stringText
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
   const handleCheck = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -56,7 +72,7 @@ function HomePage() {
         navigate('/threat-report', {
           state: {
             confidence: result.confidence || "N/A",
-            report: result.llm_report || result.prediction || result.message || "No report generated.",
+            report: sanitizeLLMOutput(result.llm_report || result.prediction || result.message || "No report generated."),
             raw: result,
             url: result.url || normalized,
             source: "Manual URL"
@@ -90,7 +106,7 @@ function HomePage() {
         navigate('/threat-report', {
           state: {
             confidence: result.confidence || "N/A",
-            report: result.llm_report || result.message || "No report generated.",
+            report: sanitizeLLMOutput(result.llm_report || result.message || "No report generated."),
             raw: result,
             url: result.selected_url || "Unknown",
             source: "Image Upload"
@@ -143,7 +159,7 @@ function HomePage() {
           </button>
         </form>
         <small style={{ color: '#888' }}>
-          Tip: You can enter “example.com” and we’ll handle the rest.
+          Tip: You can enter "example.com" and we'll handle the rest.
         </small>
       </main>
 
