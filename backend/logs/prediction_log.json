@@ -1,0 +1,60 @@
+[
+  {
+    "timestamp": "2025-04-11T23:34:15.046727",
+    "ip": "127.0.0.1",
+    "url_hash": "24346b954cf7632541369245185e06cfb3ec3669df6068c5449e945c66a5d8ad",
+    "result": {
+      "label": "phishing",
+      "confidence": 0.91
+    }
+  },
+  {
+    "timestamp": "2025-04-12T00:48:55.436591",
+    "ip": "127.0.0.1",
+    "url": "http://free-lottery123.tk/login",
+    "result": {
+      "label": "phishing",
+      "confidence": 0.91
+    }
+  },
+  {
+    "timestamp": "2025-04-12T06:08:59.900906",
+    "ip": "127.0.0.1",
+    "url": "http://free-lottery123.tk/login",
+    "result": {
+      "label": "phishing",
+      "confidence": 0.91,
+      "transport": "PQ TLS (simulated)"
+    }
+  },
+  {
+    "timestamp": "2025-04-12T07:01:49.887399",
+    "ip": "127.0.0.1",
+    "url": "http://free-lottery123.tk/login",
+    "result": {
+      "label": "phishing",
+      "confidence": 0.91,
+      "transport": "PQ TLS (simulated)"
+    }
+  },
+  {
+    "timestamp": "2025-04-12T14:13:10.562983",
+    "ip": "127.0.0.1",
+    "url": "https://www.google.com/search?q=product+liability+insurance+cost+at+ca+for+software+engineers+compainies&sca_esv=ccc5ad72962ac866&ei=gFXhZ63rG-qJptQPzv68yQ8&ved=0ahUKEwitq52X4aKMAxXqhIkEHU4_L_kQ4dUDCBI&uact=5&oq=product+liability+insurance+cost+at+ca+for+software+engineers+compainies&gs_lp=Egxnd3Mtd2l6LXNlcnAiSHByb2R1Y3QgbGlhYmlsaXR5IGluc3VyYW5jZSBjb3N0IGF0IGNhIGZvciBzb2Z0d2FyZSBlbmdpbmVlcnMgY29tcGFpbmllczIEECEYCkj5bFCKBVjRanABeAGQAQCYAaYBoAGuEaoBBDE5LjW4AQPIAQD4AQGYAg-gAoELwgIKEAAYsAMY1gQYR8ICBRAhGKABwgIFECEYqwKYAwCIBgGQBgiSBwQxMS40oAfxV7IHBDEwLjS4B_8K&sclient=gws-wiz-serp",
+    "result": {
+      "label": "safe",
+      "confidence": 0.91,
+      "transport": "PQ TLS (simulated)"
+    }
+  },
+  {
+    "timestamp": "2025-04-12T14:13:42.429474",
+    "ip": "127.0.0.1",
+    "url": "https://pub.dev/packages?q=firebase_storage&sort=downloads",
+    "result": {
+      "label": "safe",
+      "confidence": 0.91,
+      "transport": "PQ TLS (simulated)"
+    }
+  }
+]
