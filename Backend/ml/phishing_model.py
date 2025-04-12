@@ -8,9 +8,9 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 MODEL_PATH = os.path.join(BASE_DIR, "ml", "phishing_model.pkl")
 
 # Expected SHA-256 hash of the model file
-# SECURITY NOTICE: Replace this None with your model's hash to enable integrity checking
+# SECURITY NOTICE: You MUST set a valid hash here for model integrity verification
 # You can generate it with: hashlib.sha256(open(MODEL_PATH, 'rb').read()).hexdigest()
-# Until you set this value, the model will load WITHOUT integrity verification!
+# The application will not start until you provide a valid hash
 EXPECTED_MODEL_HASH = None
 
 def verify_model_integrity(file_path, expected_hash):
@@ -25,12 +25,12 @@ def verify_model_integrity(file_path, expected_hash):
         
         actual_hash = sha256_hash.hexdigest()
         
-        # If no expected hash is provided, just print the current hash to help developers
+        # If no expected hash is provided, fail with a detailed message
         if not expected_hash:
-            print("SECURITY WARNING: Model integrity verification is NOT enabled.")
+            print("SECURITY ERROR: Model integrity verification is not configured.")
             print(f"Current model hash: {actual_hash}")
-            print("To enable verification, set EXPECTED_MODEL_HASH to the value above.")
-            return True  # Allow loading but with a warning
+            print("To enable the application, set EXPECTED_MODEL_HASH to the value above.")
+            return False  # Don't allow loading without a hash
         
         # Compare with expected hash
         if actual_hash != expected_hash:
@@ -45,7 +45,7 @@ def verify_model_integrity(file_path, expected_hash):
 
 # Verify model integrity before loading
 if not verify_model_integrity(MODEL_PATH, EXPECTED_MODEL_HASH):
-    raise ValueError("Model file integrity check failed. The model file may have been tampered with.")
+    raise ValueError("Model file integrity check failed. Cannot load the model without verification.")
 
 # Load the model only if it passes integrity check
 model = joblib.load(MODEL_PATH)
