@@ -1,6 +1,7 @@
 # file: encrypt_url.py
 
 import base64
+import os
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 import hashlib
@@ -17,15 +18,22 @@ def safe_generate_key():
     raise Exception("❌ Quantum key rejected: eavesdropper detected")
 
 def encrypt_url(url: str, key: bytes) -> str:
-    iv = b'QUANTUMBLOCKMODE'  # 16 bytes static IV for demo only
+    # Generate a random IV for each encryption
+    iv = os.urandom(16)
     cipher = AES.new(key, AES.MODE_CBC, iv)
     ciphertext = cipher.encrypt(pad(url.encode(), AES.block_size))
-    return base64.urlsafe_b64encode(ciphertext).decode()
+    # Prepend IV to ciphertext for later decryption
+    encrypted_data = iv + ciphertext
+    return base64.urlsafe_b64encode(encrypted_data).decode()
 
 def decrypt_url(encrypted_url: str, key: bytes) -> str:
-    iv = b'QUANTUMBLOCKMODE'
+    encrypted_data = base64.urlsafe_b64decode(encrypted_url)
+    # Extract IV (first 16 bytes)
+    iv = encrypted_data[:16]
+    # Rest is actual ciphertext
+    ciphertext = encrypted_data[16:]
     cipher = AES.new(key, AES.MODE_CBC, iv)
-    decrypted = cipher.decrypt(base64.urlsafe_b64decode(encrypted_url))
+    decrypted = cipher.decrypt(ciphertext)
     return unpad(decrypted, AES.block_size).decode()
 
 if __name__ == "__main__":
