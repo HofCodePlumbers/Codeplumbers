@@ -11,6 +11,7 @@ import os
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime
+import logging
 
 # Load service account key (replace with your actual filename)
 cred = credentials.Certificate("firebase-cred.json")
@@ -22,9 +23,15 @@ db = firestore.client()
 app = Flask(__name__)
 LOG_PATH = "backend/logs/prediction_log.json"
 
-def decrypt_url(encrypted_url: str, key_hex: str) -> str:
+def decrypt_url(encrypted_url: str, key_hex: str, iv_b64: str = None) -> str:
     key = bytes.fromhex(key_hex)
-    iv = b'QUANTUMBLOCKMODE'
+    if iv_b64:
+        # Use client-provided IV (secure)
+        iv = base64.urlsafe_b64decode(iv_b64)
+    else:
+        # For backward compatibility - this is insecure and will be deprecated
+        logging.warning("SECURITY WARNING: Using static IV for decryption. This is insecure and will be deprecated soon.")
+        iv = b'QUANTUMBLOCKMODE'
     cipher = AES.new(key, AES.MODE_CBC, iv)
     decrypted = cipher.decrypt(base64.urlsafe_b64decode(encrypted_url))
     return unpad(decrypted, AES.block_size).decode()
@@ -59,12 +66,13 @@ def predict():
     data = request.get_json()
     encrypted_url = data.get("encrypted_url")
     key_hex = data.get("key")
+    iv_b64 = data.get("iv")  # Optional for backward compatibility
 
     if not encrypted_url or not key_hex:
         return jsonify({"error": "Missing data"}), 400
 
     try:
-        url = decrypt_url(encrypted_url, key_hex)
+        url = decrypt_url(encrypted_url, key_hex, iv_b64)
         result = fake_predict(url)
         result["transport"] = "PQ TLS (simulated)"
         log_prediction(request.remote_addr, url, result)
@@ -73,5 +81,5 @@ def predict():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
-
+    debug_mode = os.environ.get("FLASK_DEBUG", "False").lower() == "true"
+    app.run(debug=debug_mode)
