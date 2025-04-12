@@ -17,6 +17,32 @@ UPLOAD_FOLDER = 'uploads'
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'bmp'}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+def validate_llm_output(llm_text):
+    """
+    Validates and sanitizes the LLM output to prevent potential security issues.
+    
+    Args:
+        llm_text (str): The text output from the LLM
+        
+    Returns:
+        str: Sanitized output
+    """
+    # Check if the text is valid
+    if not isinstance(llm_text, str):
+        return "Invalid LLM response format"
+    
+    if len(llm_text) > 10000:  # Maximum reasonable size
+        return "LLM response too large"
+    
+    # Basic sanitization - remove any potentially harmful content
+    sanitized = re.sub(r'<script.*?>.*?</script>', '', llm_text, flags=re.DOTALL)
+    sanitized = re.sub(r'<iframe.*?>.*?</iframe>', '', sanitized, flags=re.DOTALL)
+    sanitized = re.sub(r'javascript:', '', sanitized, flags=re.IGNORECASE)
+    
+    # Additional validation could be implemented here based on expected LLM output format
+    
+    return sanitized
+
 # Reusable logic for checking a URL
 def check_url_logic(url: str):
     features = extract_features_from_url(url)
@@ -24,20 +50,50 @@ def check_url_logic(url: str):
     feature_dict = dict(zip(FEATURE_NAMES, features))
     llm_result = generate_response(url)
     llm_summary = llm_result.get("summary", "LLM response unavailable")
+    
+    # Validate and sanitize LLM output before using it
+    sanitized_summary = validate_llm_output(llm_summary)
 
     return {
         "url": url,
         "features": feature_dict,
         "prediction": result["prediction"],
         "confidence": f"{result['confidence']}%",
-        "llm_report": llm_summary
+        "llm_report": sanitized_summary
     }
 
 @api_bp.route("/check_url", methods=["POST"])
 def check_url():
-    url = request.form.get("url")
+    data = request.get_json()
+    url = data.get("url")
+
     if not url:
         return jsonify({"error": "No URL provided"}), 400
+        
+    # URL validation
+    url = url.strip()
+    
+    # Check URL length to prevent DoS
+    if len(url) > 2048:
+        return jsonify({"error": "URL exceeds maximum allowed length"}), 400
+        
+    # Basic protocol validation
+    if not url.startswith(('http://', 'https://')):
+        return jsonify({"error": "URL must use HTTP or HTTPS protocol"}), 400
+    
+    # Extract and validate domain
+    try:
+        domain_part = url.split('://', 1)[1].split('/', 1)[0].split(':', 1)[0]  # Handle ports
+        
+        # Check if domain is an IP address
+        ip_pattern = r'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+        is_ip = bool(re.match(ip_pattern, domain_part))
+        
+        # If not an IP, ensure it has a valid domain format
+        if not is_ip and (not domain_part or '.' not in domain_part or len(domain_part.split('.')) < 2):
+            return jsonify({"error": "Invalid domain in URL"}), 400
+    except Exception:
+        return jsonify({"error": "Invalid URL format"}), 400
 
     try:
         result = check_url_logic(url)
