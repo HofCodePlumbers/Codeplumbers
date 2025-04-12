@@ -18,6 +18,36 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def validate_llm_output(llm_text):
     """
     Validates and sanitizes the LLM output to prevent potential security issues.
+    Uses a comprehensive approach to ensure outputs can't be used for XSS or other attacks.
+    """
+    if not isinstance(llm_text, str):
+        return "Invalid LLM response format"
+    
+    if len(llm_text) > 10000:  # Maximum reasonable size
+        return "LLM response too large"
+    
+    # First remove any HTML tags completely
+    sanitized = re.sub(r'<[^>]*>', '', llm_text)
+    
+    # Manually escape HTML special characters
+    sanitized = sanitized.replace('&', '&amp;')
+    sanitized = sanitized.replace('<', '&lt;')
+    sanitized = sanitized.replace('>', '&gt;')
+    sanitized = sanitized.replace('"', '&quot;')
+    sanitized = sanitized.replace("'", '&#x27;')
+    
+    # Handle potential javascript: URLs and similar schemes
+    sanitized = re.sub(r'(?i)javascript:', 'blocked:', sanitized)
+    sanitized = re.sub(r'(?i)data:', 'blocked:', sanitized)
+    sanitized = re.sub(r'(?i)vbscript:', 'blocked:', sanitized)
+    sanitized = re.sub(r'(?i)file:', 'blocked:', sanitized)
+    sanitized = re.sub(r'(?i)about:', 'blocked:', sanitized)
+    
+    return sanitized
+
+@api_bp.route("/check_url", methods=["POST"])
+def check_url():
+    data = request.get_json()
     url = data.get("url")
 
     if not url:
@@ -39,7 +69,7 @@ def validate_llm_output(llm_text):
         domain_part = url.split('://', 1)[1].split('/', 1)[0].split(':', 1)[0]  # Handle ports
         
         # Check if domain is an IP address
-        ip_pattern = r'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+        ip_pattern = r'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)
         is_ip = bool(re.match(ip_pattern, domain_part))
         
         # If not an IP, ensure it has a valid domain format
@@ -51,35 +81,9 @@ def validate_llm_output(llm_text):
     try:
         # Extract features & run ML prediction
         features = extract_features_from_url(url)
-    if not isinstance(llm_text, str):
-        return "Invalid LLM response format"
-    
-    if len(llm_text) > 10000:  # Maximum reasonable size
-        return "LLM response too large"
-    
-    # Basic sanitization - remove any potentially harmful content
-    sanitized = re.sub(r'<script.*?>.*?</script>', '', llm_text, flags=re.DOTALL)
-    sanitized = re.sub(r'<iframe.*?>.*?</iframe>', '', sanitized, flags=re.DOTALL)
-    sanitized = re.sub(r'javascript:', '', sanitized, flags=re.IGNORECASE)
-    
-    # Additional validation could be implemented here based on expected LLM output format
-    
-    return sanitized
-
-@api_bp.route("/check_url", methods=["POST"])
-def check_url():
-    data = request.get_json()
-    url = data.get("url")
-# ✅ Define whitelist
-WHITELIST = {
-    "google.com",
-    "wikipedia.org",
-    "github.com",
-    "apple.com",
-    "microsoft.com",
-    "amazon.com"
-}
-
+        result = predict_from_features(features)
+        feature_dict = dict(zip(FEATURE_NAMES, features))
+        
         # Run LLM logic to get report
         llm_result = generate_response(url)
         llm_summary = llm_result.get("summary", "LLM response unavailable")
@@ -98,31 +102,14 @@ WHITELIST = {
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    features = extract_features_from_url(url)
-    result = predict_from_features(features)
-    feature_dict = dict(zip(FEATURE_NAMES, features))
-    llm_result = generate_response(url)
-    llm_summary = llm_result.get("summary", "LLM response unavailable")
-
-    return {
-        "url": url,
-        "features": feature_dict,
-        "prediction": result["prediction"],
-        "confidence": f"{result['confidence']}%",
-        "llm_report": llm_summary
-    }
-
-            if os.path.exists(filepath):
-                os.remove(filepath)
-
-    else:
-        return jsonify({'error': 'Invalid image file type'}), 400
-
-    try:
-        result = check_url_logic(url)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# WHITELIST = {
+#     "google.com",
+#     "wikipedia.org",
+#     "github.com",
+#     "apple.com",
+#     "microsoft.com",
+#     "amazon.com"
+# }
 
 def allowed_image_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
