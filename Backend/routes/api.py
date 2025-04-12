@@ -29,6 +29,38 @@ WHITELIST = {
     "amazon.com"
 }
 
+def sanitize_llm_output(output: str) -> str:
+    """
+    Sanitizes LLM output to prevent potentially harmful content.
+    """
+    # Remove any HTML/script tags that could be used for XSS
+    cleaned = re.sub(r'<script.*?>.*?</script>', '', output, flags=re.DOTALL)
+    cleaned = re.sub(r'<.*?>', '', cleaned)
+    
+    # Limit length to prevent overly long responses
+    max_length = 1000
+    if len(cleaned) > max_length:
+        cleaned = cleaned[:max_length] + "... [truncated]"
+    
+    return cleaned
+
+def validate_llm_output(output):
+    """
+    Validates and sanitizes the LLM output to ensure it's safe to use.
+    """
+    # If the output is not a dictionary or doesn't have the expected structure
+    if not isinstance(output, dict):
+        return {"summary": "LLM response unavailable"}
+    
+    summary = output.get("summary", "LLM response unavailable")
+    if not isinstance(summary, str):
+        summary = "LLM response unavailable"
+    
+    # Sanitize the summary content
+    sanitized_summary = sanitize_llm_output(summary)
+    
+    return {"summary": sanitized_summary}
+
 # ✅ Reusable logic for checking a URL
 def check_url_logic(url: str):
     domain_info = tldextract.extract(url)
@@ -47,8 +79,13 @@ def check_url_logic(url: str):
     features = extract_features_from_url(url)
     result = predict_from_features(features)
     feature_dict = dict(zip(FEATURE_NAMES, features))
+    
+    # Get LLM response
     llm_result = generate_response(url)
-    llm_summary = llm_result.get("summary", "LLM response unavailable")
+    
+    # Validate and sanitize the LLM output before using it
+    validated_llm_result = validate_llm_output(llm_result)
+    llm_summary = validated_llm_result.get("summary", "LLM response unavailable")
 
     return {
         "url": url,
