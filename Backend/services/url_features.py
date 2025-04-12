@@ -3,6 +3,7 @@ import requests
 import socket
 import whois
 import tldextract
+import ipaddress
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from datetime import datetime
@@ -17,8 +18,51 @@ FEATURE_NAMES = [
     "Links_pointing_to_page", "Statistical_report"
 ]
 
+def is_valid_url(url):
+    """
+    Validate URL to prevent SSRF attacks by checking:
+    1. URL scheme is http or https
+    2. URL doesn't point to internal networks or localhost
+    3. URL has valid structure
+    """
+    try:
+        parsed = urlparse(url)
+        
+        # Validate scheme
+        if parsed.scheme not in ['http', 'https']:
+            return False
+            
+        # Validate hostname presence
+        if not parsed.netloc:
+            return False
+            
+        # Check for localhost
+        hostname = parsed.netloc.split(':')[0]
+        if hostname in ['localhost', '127.0.0.1', '::1']:
+            return False
+            
+        # Check for internal IPs
+        try:
+            if hostname.replace('.', '').isdigit():  # If it looks like an IP address
+                ip = ipaddress.ip_address(hostname)
+                if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_multicast:
+                    return False
+        except ValueError:
+            # Not an IP address, continue with hostname validation
+            pass
+            
+        return True
+    except Exception:
+        return False
+
 def extract_features_from_url(url):
     features = []
+    
+    # Validate URL before proceeding
+    if not is_valid_url(url):
+        # Return default values if URL is not valid
+        return [-1] * len(FEATURE_NAMES)
+        
     parsed = urlparse(url)
     domain = parsed.netloc
     path = parsed.path
@@ -150,8 +194,12 @@ def extract_features_from_url(url):
 
     # 19. Redirect count
     try:
-        r = requests.get(url, timeout=5)
-        features.append(1 if len(r.history) > 3 else 0 if len(r.history) else -1)
+        # Revalidate URL before making request
+        if is_valid_url(url):
+            r = requests.get(url, timeout=5)
+            features.append(1 if len(r.history) > 3 else 0 if len(r.history) else -1)
+        else:
+            features.append(-1)
     except:
         features.append(-1)
 
@@ -186,10 +234,14 @@ def extract_features_from_url(url):
     except:
         features.append(1)
 
-       # 26. Web Traffic (simulate with reachability check)
+    # 26. Web Traffic (simulate with reachability check)
     try:
-        traffic = requests.get(f"https://www.{full_domain}", timeout=5)
-        features.append(1 if traffic.status_code == 200 else -1)
+        traffic_url = f"https://www.{full_domain}"
+        if is_valid_url(traffic_url):
+            traffic = requests.get(traffic_url, timeout=5)
+            features.append(1 if traffic.status_code == 200 else -1)
+        else:
+            features.append(-1)
     except:
         features.append(-1)
 
@@ -203,9 +255,12 @@ def extract_features_from_url(url):
     # 28. Google Index (try searching site:domain using Google)
     try:
         search_url = f"https://www.google.com/search?q=site:{full_domain}"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        result = requests.get(search_url, headers=headers, timeout=5)
-        features.append(1 if "did not match any documents" not in result.text else -1)
+        if is_valid_url(search_url):
+            headers = {"User-Agent": "Mozilla/5.0"}
+            result = requests.get(search_url, headers=headers, timeout=5)
+            features.append(1 if "did not match any documents" not in result.text else -1)
+        else:
+            features.append(-1)
     except:
         features.append(-1)
 
