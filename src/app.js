@@ -21,7 +21,7 @@ function HomePage() {
   const handleCheck = async (e) => {
     e.preventDefault();
     setLoading(true);
-
+    console.log("Checking URL:", url);
     const trimmedUrl = url.trim();
     const hasUrl = trimmedUrl !== '';
     const hasFile = file !== null;
@@ -34,8 +34,10 @@ function HomePage() {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
+            "Access-Control-Allow-Origin": "*",
           },
           body: new URLSearchParams({ url: normalized }).toString(),
+          mode: 'cors'
         });
 
         const text = await response.text();
