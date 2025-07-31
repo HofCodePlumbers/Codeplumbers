@@ -1,7 +1,9 @@
 # file: quantum_key_sim.py
 
 # from qiskit_ibm_provider import IBMProvider
-from qiskit import Aer, QuantumCircuit, execute
+from qiskit import QuantumCircuit, transpile
+from qiskit_aer import Aer
+
 import random
 import hashlib
 
@@ -22,7 +24,9 @@ def bb84_measure(a_bit, a_basis, b_basis, backend):
     if b_basis == 'X':
         qc.h(0)
     qc.measure(0, 0)
-    job = execute(qc, backend=backend, shots=1, memory=True)
+    new_circuit = transpile(qc, backend)
+    job = backend.run(new_circuit, shots=1, memory=True)
+    #job = execute(qc, backend=backend, shots=1, memory=True)
     result = job.result().get_memory()[0]
     return int(result)
 
@@ -95,7 +99,10 @@ def simulate_bb84(bits=128, tamper_chance=0.2):
             qc.h(0)
         qc.measure(0, 0)
 
-        job = execute(qc, backend=backend, shots=1, memory=True)
+        new_circuit = transpile(qc, backend,)
+        job = backend.run(new_circuit, shots=1, memory=True)
+        
+        #job = execute(qc, backend=backend, shots=1, memory=True)
         bob_bit = int(job.result().get_memory()[0])
 
         if alice_bases[i] == bob_bases[i]:
