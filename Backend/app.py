@@ -1,10 +1,10 @@
 from flask import Flask
 from routes.api import api_bp
 import os
-
+from flask_cors import CORS
 app = Flask(__name__)
 app.register_blueprint(api_bp, url_prefix="/api")
-
+CORS(app)
 if __name__ == '__main__':
     # Security: Debug mode should never be enabled in production environments as it can expose
     # sensitive information through detailed error pages and stack traces
