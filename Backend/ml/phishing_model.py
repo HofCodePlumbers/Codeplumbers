@@ -2,6 +2,7 @@ import os
 import joblib
 import numpy as np
 import hashlib
+import pandas as pd
 
 # Use safe absolute path
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -11,7 +12,7 @@ MODEL_PATH = os.path.join(BASE_DIR, "ml", "phishing_model.pkl")
 # SECURITY NOTICE: You MUST set a valid hash here for model integrity verification
 # You can generate it with: hashlib.sha256(open(MODEL_PATH, 'rb').read()).hexdigest()
 # The application will not start until you provide a valid hash
-EXPECTED_MODEL_HASH = None
+#EXPECTED_MODEL_HASH = hashlib.sha256(open(MODEL_PATH, 'rb').read()).hexdigest()
 
 def verify_model_integrity(file_path, expected_hash):
     """Verify the integrity of a file by comparing its hash with the expected hash."""
@@ -49,10 +50,18 @@ if not verify_model_integrity(MODEL_PATH, EXPECTED_MODEL_HASH):
 
 # Load the model only if it passes integrity check
 model = joblib.load(MODEL_PATH)
-
+print()
 def predict_from_features(feature_vector):
     # Convert to 2D array for prediction
-    X = [feature_vector]
+    
+    X = pd.DataFrame([feature_vector], columns=["having_IP_Address", "URL_Length", "Shortening_Service", "having_At_Symbol",
+    "double_slash_redirecting", "Prefix_Suffix", "having_Sub_Domain", "SSLfinal_State",
+    "Domain_registeration_length", "Favicon", "port", "HTTPS_token", "Request_URL",
+    "URL_of_Anchor", "Links_in_tags", "SFH", "Submitting_to_email", "Abnormal_URL",
+    "Redirect", "on_mouseover", "RightClick", "popUpWidnow", "Iframe",
+    "age_of_domain", "DNSRecord", "Web_Traffic", "Page_Rank", "Google_Index",
+    "Links_pointing_to_page", "Statistical_report"])
+    
     proba = model.predict_proba(X)[0]
     pred = model.predict(X)[0]
     confidence = round(max(proba) * 100, 2)
