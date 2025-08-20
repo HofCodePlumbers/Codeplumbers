@@ -15,6 +15,7 @@ UPLOAD_FOLDER = 'uploads'
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'bmp'}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+api_bp = Blueprint('api', __name__)
 
 # ✅ Define whitelist
 WHITELIST = {
@@ -43,6 +44,7 @@ def check_url_logic(url: str):
 
     # Otherwise, proceed with feature extraction and prediction
     features = extract_features_from_url(url)
+    print(features)
     result = predict_from_features(features)
     feature_dict = dict(zip(FEATURE_NAMES, features))
     llm_result = generate_response(url)
@@ -74,7 +76,7 @@ def check_url():
         llm_summary = llm_result.get("summary", "LLM response unavailable")
         
         # Validate and sanitize LLM output before using it
-        sanitized_summary = validate_llm_output(llm_summary)
+        sanitized_summary = llm_summary
 
         # Return all in one response
         return jsonify({
@@ -125,7 +127,7 @@ def validate_image_content(file):
         return True
     except Exception:
         return False
-
+'''
 @api_bp.route('/upload_image', methods=['POST'])
 def upload_image():
     if 'file' not in request.files:
@@ -144,11 +146,7 @@ def upload_image():
         filename = f"{timestamp}_{secure_filename(file.filename)}"
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
-                    "text": text,
-                    "urls": [],
-                    "message": "No URL found in image."
-                }), 200
-
+        try:
             selected_url = urls[0]
             result = check_url_logic(selected_url)
 
@@ -175,3 +173,4 @@ def upload_image():
 
     else:
         return jsonify({'error': 'Invalid image file type'}), 400
+'''
